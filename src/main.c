@@ -87,7 +87,7 @@ void user_delay_us(uint32_t period, void *intf_ptr);
  * Humidity
  *
  */
-void print_sensor_data(struct bme280_data *comp_data);
+void print_sensor_data(struct bme280_data *comp_data, double temp_ext, double temperature);
 
 /*!
  *  @brief Function for reading the sensor's registers through I2C bus.
@@ -136,7 +136,7 @@ int8_t user_i2c_write(uint8_t reg_addr, const uint8_t *data, uint32_t len, void 
  * @retval BME280_E_NVM_COPY_FAILED - Error: NVM copy failed
  *
  */
-int8_t stream_sensor_data_forced_mode(struct bme280_dev *dev, double TR);
+int8_t stream_sensor_data_forced_mode(struct bme280_dev *dev, double TE, double TR);
 
 int initial_config_uart();
 
@@ -189,7 +189,7 @@ int main(int argc, char* argv[])
     printf("Escolha uma das opções: ");
     scanf("%d",&opcao);
 
-    double temperatura;
+    double TE, TR;
 
     switch(opcao){
         case 1:
@@ -199,9 +199,12 @@ int main(int argc, char* argv[])
             break;
         case 2:
             printf("Escolha a temperatura desejada: ");
-            scanf("%lf", &temperatura);
+            scanf("%lf", &TR);
     }
     
+    write_uart(uart0_filestream, 0xA2);
+    read_uart(uart0_filestream);
+
     dev.intf = BME280_I2C_INTF;
     dev.read = user_i2c_read;
     dev.write = user_i2c_write;
@@ -218,7 +221,7 @@ int main(int argc, char* argv[])
         exit(1);
     }
 
-    rslt = stream_sensor_data_forced_mode(&dev, temperatura);
+    rslt = stream_sensor_data_forced_mode(&dev, TE, TR);
     if (rslt != BME280_OK)
     {
         fprintf(stderr, "Failed to stream sensor data (code %+d).\n", rslt);
@@ -276,34 +279,32 @@ int8_t user_i2c_write(uint8_t reg_addr, const uint8_t *data, uint32_t len, void 
 }
 
 /*!
- * @brief This API used to print the sensor temperature, pressure and humidity data.
+ * @brief This API used to print the sensors temperatures.
  */
-void print_sensor_data(struct bme280_data *comp_data)
+void print_sensor_data(struct bme280_data *comp_data, double temp_ext, double temperature)
 {
-    float temp, press, hum;
+    float ti, te, tr;
+
+    te = temp_ext;
+
+    tr = temperature;
 
 #ifdef BME280_FLOAT_ENABLE
-    temp = comp_data->temperature;
-    press = 0.01 * comp_data->pressure;
-    hum = comp_data->humidity;
+    ti = comp_data->temperature;
 #else
 #ifdef BME280_64BIT_ENABLE
-    temp = 0.01f * comp_data->temperature;
-    press = 0.0001f * comp_data->pressure;
-    hum = 1.0f / 1024.0f * comp_data->humidity;
+    ti = 0.01f * comp_data->temperature;
 #else
-    temp = 0.01f * comp_data->temperature;
-    press = 0.01f * comp_data->pressure;
-    hum = 1.0f / 1024.0f * comp_data->humidity;
+    ti = 0.01f * comp_data->temperature;
 #endif
 #endif
-    printf("%0.2lf deg C, %0.2lf hPa, %0.2lf%%\n", temp, press, hum);
+    printf("TI: %0.2lf deg C, TE: %0.2lf deg C, TR: %0.2lf deg C\n", ti, te, tr);
 }
 
 /*!
  * @brief This API reads the sensor temperature, pressure and humidity data in forced mode.
  */
-int8_t stream_sensor_data_forced_mode(struct bme280_dev *dev, double TR)
+int8_t stream_sensor_data_forced_mode(struct bme280_dev *dev, double TE, double TR)
 {
     /* Variable to define the result */
     int8_t rslt = BME280_OK;
@@ -374,9 +375,9 @@ int8_t stream_sensor_data_forced_mode(struct bme280_dev *dev, double TR)
             break;
         }
             float TI = comp_data.temperature;
-       	    print_sensor_data(&comp_data);
+       	    print_sensor_data(&comp_data, TE, TR);
 	        printf("%s",asctime(timeinfo));
-            fprintf(file, "Medicao %d - Temperatura Desejada: %lf - Temperatura Interna: %lf, Hora: %s", i+1, TR, TI, asctime(timeinfo));
+            fprintf(file, "Medicao %d - Hora: %s - TR: %lf - TI: %lf - TE: %lf", i+1, asctime(timeinfo), TR, TI, TE);
             i++;
 	        sleep(2);
             fclose(file);
