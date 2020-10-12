@@ -35,7 +35,11 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <fcntl.h>
-#include <time.h>
+#include <time.h>          //Used for UART
+#include <fcntl.h>          //Used for UART
+#include <termios.h>        //Used for UART
+
+
 
 
 /******************************************************************************/
@@ -134,7 +138,13 @@ int8_t user_i2c_write(uint8_t reg_addr, const uint8_t *data, uint32_t len, void 
  */
 int8_t stream_sensor_data_forced_mode(struct bme280_dev *dev, double TR);
 
+int initial_config_uart();
+
 void menu();
+
+void write_uart(int uart0_filestream, int cmd);
+
+void read_uart(int uart0_filestream);
 
 /*!
  * @brief This function starts execution of the program.
@@ -171,21 +181,25 @@ int main(int argc, char* argv[])
 
 //#endif
 
+    int uart0_filestream = initial_config_uart();
+    
     int opcao;
     printf("1- Temperatura pelo potenciometro\n");
     printf("2- Escolher manualmente\n");
     printf("Escolha uma das opções: ");
     scanf("%d",&opcao);
 
-    int temperatura;
+    double temperatura;
 
     switch(opcao){
         case 1:
             printf("1\n");
+            write_uart(uart0_filestream, 0xA1);
+            read_uart(uart0_filestream);
             break;
         case 2:
-            printf("Escolha a temperatura: ");
-            scanf("%d", &temperatura);
+            printf("Escolha a temperatura desejada: ");
+            scanf("%lf", &temperatura);
     }
     
     dev.intf = BME280_I2C_INTF;
@@ -365,7 +379,62 @@ int8_t stream_sensor_data_forced_mode(struct bme280_dev *dev, double TR)
             fprintf(file, "Medicao %d - Temperatura Desejada: %lf - Temperatura Interna: %lf, Hora: %s", i+1, TR, TI, asctime(timeinfo));
             i++;
 	        sleep(2);
+            fclose(file);
     }
 
     return rslt;
 }
+
+int initial_config_uart(){
+	int uart0_filestream = -1;
+	uart0_filestream = open("/dev/serial0", O_RDWR | O_NOCTTY | O_NDELAY);      //Open in non blocking read/write mode
+    if (uart0_filestream == -1)
+    {
+        printf("Erro - Não foi possível iniciar a UART.\n");
+        close(uart0_filestream);
+		exit(0);
+    }
+    else
+    {
+        printf("UART inicializada!\n");
+    }
+    struct termios options;
+    tcgetattr(uart0_filestream, &options);
+    options.c_cflag = B115200 | CS8 | CLOCAL | CREAD;     //<Set baud rate
+    options.c_iflag = IGNPAR;
+    options.c_oflag = 0;
+    options.c_lflag = 0;
+    tcflush(uart0_filestream, TCIFLUSH);
+    tcsetattr(uart0_filestream, TCSANOW, &options);
+	return uart0_filestream;
+}
+
+
+void write_uart(int uart0_filestream, int cmd){
+    char data[] = {cmd,0,1,9,5};
+	write(uart0_filestream, data, 5);
+}
+
+
+void read_uart(int uart0_filestream){
+	sleep(1);
+	// Read up to 255 characters from the port if they are there
+    unsigned char rx_buffer[256];
+    char format[25];
+    int rx_length = read(uart0_filestream, (void*)rx_buffer, 255);      //Filestream, buffer to store in, number of bytes to read (max)
+    if (rx_length < 0)
+    {
+        printf("Erro na leitura.\n"); //An error occured (will occur if there are no bytes)
+    }
+    else if (rx_length == 0)
+    {
+        printf("Nenhum dado encontrado.\n"); //No data waiting
+    }
+    else
+    {
+        //Bytes received
+        rx_buffer[rx_length] = '\0';
+        printf(format, rx_length, rx_buffer);
+    }
+}
+
