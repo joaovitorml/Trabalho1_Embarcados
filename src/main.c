@@ -69,7 +69,13 @@ void typeln(const char *s);
 void typeChar(char val);
 int fd;  // seen by all subroutines
 
+// GPIO
 
+#include <bcm2835.h>
+
+ 
+#define RES RPI_GPIO_P1_18
+#define VEN RPI_GPIO_P1_16
 
 /******************************************************************************/
 /*!                         Own header files                                  */
@@ -226,15 +232,16 @@ int main(int argc, char* argv[])
     switch(opcao){
         case 1:
             printf("1\n");
-            write_uart(uart0_filestream, 0xA1);
-            read_uart(uart0_filestream);
+            write_uart(uart0_filestream, 0xA2);
+            TR = atof(read_uart(uart0_filestream));
             break;
         case 2:
             printf("Escolha a temperatura desejada: ");
             scanf("%f", &TR);
+            break;
     }
     
-    write_uart(uart0_filestream, 0xA2);
+    write_uart(uart0_filestream, 0xA1);
     float TI = atof(read_uart(uart0_filestream));
 
     dev.intf = BME280_I2C_INTF;
@@ -380,6 +387,7 @@ int8_t stream_sensor_data_forced_mode(struct bme280_dev *dev, float TI, float TR
     FILE *file;
     file = fopen("arquivo.csv","w");
     fclose(file);
+    
 
     /* Continuously stream sensor data */
     while (1)
@@ -426,6 +434,25 @@ int8_t stream_sensor_data_forced_mode(struct bme280_dev *dev, float TI, float TR
             lcdLoc(LINE2);
             typeln("TE: ");
             typeFloat(TE);
+
+            if (!bcm2835_init())
+                return 1;
+ 
+            // Set the pin to be an output
+            bcm2835_gpio_fsel(RES, BCM2835_GPIO_FSEL_OUTP);
+            bcm2835_gpio_fsel(VEN, BCM2835_GPIO_FSEL_OUTP);
+
+            if(TI < TR){
+                bcm2835_gpio_write(RES, LOW);
+                bcm2835_gpio_write(VEN, HIGH);
+                bcm2835_delay(500);
+            }
+            else{
+                bcm2835_gpio_write(RES, HIGH);
+                bcm2835_gpio_write(VEN, LOW);
+                bcm2835_delay(500);
+            }
+            bcm2835_close();
     }
 
     return rslt;
