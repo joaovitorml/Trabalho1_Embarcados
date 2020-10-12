@@ -39,12 +39,44 @@
 #include <fcntl.h>          //Used for UART
 #include <termios.h>        //Used for UART
 
+// LCD definitions
+
+// Define some device parameters
+#define I2C_ADDR   0x27 // I2C device address
+
+// Define some device constants
+#define LCD_CHR  1 // Mode - Sending data
+#define LCD_CMD  0 // Mode - Sending command
+
+#define LINE1  0x80 // 1st line
+#define LINE2  0xC0 // 2nd line
+
+#define LCD_BACKLIGHT   0x08  // On
+// LCD_BACKLIGHT = 0x00  # Off
+
+#define ENABLE  0b00000100 // Enable bit
+
+void lcd_init(void);
+void lcd_byte(int bits, int mode);
+void lcd_toggle_enable(int bits);
+
+// added by Lewis
+void typeInt(int i);
+void typeFloat(float myFloat);
+void lcdLoc(int line); //move cursor
+void ClrLcd(void); // clr LCD return home
+void typeln(const char *s);
+void typeChar(char val);
+int fd;  // seen by all subroutines
 
 
 
 /******************************************************************************/
 /*!                         Own header files                                  */
 #include "bme280.h"
+#include "bme280_defs.h"
+// #include "wiringPi.h"       // Used for LCD
+// #include "wiringPiI2C.h"    // Used for LCD 
 
 /******************************************************************************/
 /*!                               Structures                                  */
@@ -87,7 +119,7 @@ void user_delay_us(uint32_t period, void *intf_ptr);
  * Humidity
  *
  */
-void print_sensor_data(struct bme280_data *comp_data, double temp_ext, double temperature);
+void print_sensor_data(struct bme280_data *comp_data, float temp_ext, float temperature);
 
 /*!
  *  @brief Function for reading the sensor's registers through I2C bus.
@@ -136,7 +168,7 @@ int8_t user_i2c_write(uint8_t reg_addr, const uint8_t *data, uint32_t len, void 
  * @retval BME280_E_NVM_COPY_FAILED - Error: NVM copy failed
  *
  */
-int8_t stream_sensor_data_forced_mode(struct bme280_dev *dev, double TE, double TR);
+int8_t stream_sensor_data_forced_mode(struct bme280_dev *dev, float TI, float TR);
 
 int initial_config_uart();
 
@@ -144,7 +176,7 @@ void menu();
 
 void write_uart(int uart0_filestream, int cmd);
 
-void read_uart(int uart0_filestream);
+char *read_uart(int uart0_filestream);
 
 /*!
  * @brief This function starts execution of the program.
@@ -189,7 +221,7 @@ int main(int argc, char* argv[])
     printf("Escolha uma das opções: ");
     scanf("%d",&opcao);
 
-    double TE, TR;
+    float TR;
 
     switch(opcao){
         case 1:
@@ -199,11 +231,11 @@ int main(int argc, char* argv[])
             break;
         case 2:
             printf("Escolha a temperatura desejada: ");
-            scanf("%lf", &TR);
+            scanf("%f", &TR);
     }
     
     write_uart(uart0_filestream, 0xA2);
-    read_uart(uart0_filestream);
+    float TI = atof(read_uart(uart0_filestream));
 
     dev.intf = BME280_I2C_INTF;
     dev.read = user_i2c_read;
@@ -221,7 +253,7 @@ int main(int argc, char* argv[])
         exit(1);
     }
 
-    rslt = stream_sensor_data_forced_mode(&dev, TE, TR);
+    rslt = stream_sensor_data_forced_mode(&dev, TI, TR);
     if (rslt != BME280_OK)
     {
         fprintf(stderr, "Failed to stream sensor data (code %+d).\n", rslt);
@@ -281,16 +313,16 @@ int8_t user_i2c_write(uint8_t reg_addr, const uint8_t *data, uint32_t len, void 
 /*!
  * @brief This API used to print the sensors temperatures.
  */
-void print_sensor_data(struct bme280_data *comp_data, double temp_ext, double temperature)
+void print_sensor_data(struct bme280_data *comp_data, float temp_int, float temperature)
 {
     float ti, te, tr;
 
-    te = temp_ext;
+    ti = temp_int;
 
     tr = temperature;
 
 #ifdef BME280_FLOAT_ENABLE
-    ti = comp_data->temperature;
+    te = comp_data->temperature;
 #else
 #ifdef BME280_64BIT_ENABLE
     ti = 0.01f * comp_data->temperature;
@@ -304,7 +336,7 @@ void print_sensor_data(struct bme280_data *comp_data, double temp_ext, double te
 /*!
  * @brief This API reads the sensor temperature, pressure and humidity data in forced mode.
  */
-int8_t stream_sensor_data_forced_mode(struct bme280_dev *dev, double TE, double TR)
+int8_t stream_sensor_data_forced_mode(struct bme280_dev *dev, float TI, float TR)
 {
     /* Variable to define the result */
     int8_t rslt = BME280_OK;
@@ -374,17 +406,33 @@ int8_t stream_sensor_data_forced_mode(struct bme280_dev *dev, double TE, double 
             fprintf(stderr, "Failed to get sensor data (code %+d).", rslt);
             break;
         }
-            float TI = comp_data.temperature;
+            float TE = comp_data.temperature;
        	    print_sensor_data(&comp_data, TE, TR);
 	        printf("%s",asctime(timeinfo));
-            fprintf(file, "Medicao %d - Hora: %s - TR: %lf - TI: %lf - TE: %lf", i+1, asctime(timeinfo), TR, TI, TE);
+            fprintf(file, "Medicao %d - Hora: %s - TR: %f - TI: %f - TE: %f", i+1, asctime(timeinfo), TR, TI, TE);
             i++;
 	        sleep(2);
             fclose(file);
+
+            lcd_init(); 
+
+            delay(2000);
+            ClrLcd();
+            lcdLoc(LINE1);
+            typeln("TR: ");
+            typeFloat(TR);
+            typeln("TI: ");
+            typeFloat(TI);
+            lcdLoc(LINE2);
+            typeln("TE: ");
+            typeFloat(TE);
     }
 
     return rslt;
 }
+
+
+// UART
 
 int initial_config_uart(){
 	int uart0_filestream = -1;
@@ -417,11 +465,12 @@ void write_uart(int uart0_filestream, int cmd){
 }
 
 
-void read_uart(int uart0_filestream){
+char *read_uart(int uart0_filestream){
 	sleep(1);
 	// Read up to 255 characters from the port if they are there
     unsigned char rx_buffer[256];
     char format[25];
+    strcpy(format ,"%i Bytes lidos : %f\n");
     int rx_length = read(uart0_filestream, (void*)rx_buffer, 255);      //Filestream, buffer to store in, number of bytes to read (max)
     if (rx_length < 0)
     {
@@ -437,5 +486,92 @@ void read_uart(int uart0_filestream){
         rx_buffer[rx_length] = '\0';
         printf(format, rx_length, rx_buffer);
     }
+    return rx_buffer;
 }
 
+// LCD
+
+
+// float to string
+void typeFloat(float myFloat)   {
+  char buffer[20];
+  sprintf(buffer, "%4.2f",  myFloat);
+  typeln(buffer);
+}
+
+// int to string
+void typeInt(int i)   {
+  char array1[20];
+  sprintf(array1, "%d",  i);
+  typeln(array1);
+}
+
+// clr lcd go home loc 0x80
+void ClrLcd(void)   {
+  lcd_byte(0x01, LCD_CMD);
+  lcd_byte(0x02, LCD_CMD);
+}
+
+// go to location on LCD
+void lcdLoc(int line)   {
+  lcd_byte(line, LCD_CMD);
+}
+
+// out char to LCD at current position
+void typeChar(char val)   {
+
+  lcd_byte(val, LCD_CHR);
+}
+
+
+// this allows use of any size string
+void typeln(const char *s)   {
+
+  while ( *s ) lcd_byte(*(s++), LCD_CHR);
+
+}
+
+void lcd_byte(int bits, int mode)   {
+
+  //Send byte to data pins
+  // bits = the data
+  // mode = 1 for data, 0 for command
+  int bits_high;
+  int bits_low;
+  // uses the two half byte writes to LCD
+  bits_high = mode | (bits & 0xF0) | LCD_BACKLIGHT ;
+  bits_low = mode | ((bits << 4) & 0xF0) | LCD_BACKLIGHT ;
+
+  // High bits
+  wiringPiI2CReadReg8(fd, bits_high);
+  lcd_toggle_enable(bits_high);
+
+  // Low bits
+  wiringPiI2CReadReg8(fd, bits_low);
+  lcd_toggle_enable(bits_low);
+}
+
+void lcd_toggle_enable(int bits)   {
+  // Toggle enable pin on LCD display
+  delayMicroseconds(500);
+  wiringPiI2CReadReg8(fd, (bits | ENABLE));
+  delayMicroseconds(500);
+  wiringPiI2CReadReg8(fd, (bits & ~ENABLE));
+  delayMicroseconds(500);
+}
+
+
+void lcd_init()   {
+
+  if (wiringPiSetup () == -1) exit (1);
+
+  fd = wiringPiI2CSetup(I2C_ADDR);
+  // Initialise display
+  lcd_byte(0x33, LCD_CMD); // Initialise
+  lcd_byte(0x32, LCD_CMD); // Initialise
+  lcd_byte(0x06, LCD_CMD); // Cursor move direction
+  lcd_byte(0x0C, LCD_CMD); // 0x0F On, Blink Off
+  lcd_byte(0x28, LCD_CMD); // Data length, number of lines, font size
+  lcd_byte(0x01, LCD_CMD); // Clear display
+  delayMicroseconds(500);
+}
