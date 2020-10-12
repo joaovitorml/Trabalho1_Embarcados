@@ -38,6 +38,9 @@
 #include <time.h>          //Used for UART
 #include <fcntl.h>          //Used for UART
 #include <termios.h>        //Used for UART
+#include <bme280.h>
+#include <bme280_defs.h>
+#include <bcm2835.h>
 
 // LCD definitions
 
@@ -69,18 +72,12 @@ void typeln(const char *s);
 void typeChar(char val);
 int fd;  // seen by all subroutines
 
-// GPIO
-
-#include <bcm2835.h>
-
  
 #define RES RPI_GPIO_P1_18
 #define VEN RPI_GPIO_P1_16
 
 /******************************************************************************/
 /*!                         Own header files                                  */
-#include "bme280.h"
-#include "bme280_defs.h"
 // #include "wiringPi.h"       // Used for LCD
 // #include "wiringPiI2C.h"    // Used for LCD 
 
