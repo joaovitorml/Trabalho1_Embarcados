@@ -38,9 +38,10 @@
 #include <time.h>          //Used for UART
 #include <fcntl.h>          //Used for UART
 #include <termios.h>        //Used for UART
-#include <bme280.h>
-#include <bme280_defs.h>
-#include <bcm2835.h>
+#include "bme280.h"
+#include "bme280_defs.h"
+
+#include "lcd.h"
 
 // LCD definitions
 
@@ -78,8 +79,7 @@ int fd;  // seen by all subroutines
 
 /******************************************************************************/
 /*!                         Own header files                                  */
-// #include "wiringPi.h"       // Used for LCD
-// #include "wiringPiI2C.h"    // Used for LCD 
+
 
 /******************************************************************************/
 /*!                               Structures                                  */
@@ -179,7 +179,7 @@ void menu();
 
 void write_uart(int uart0_filestream, int cmd);
 
-char *read_uart(int uart0_filestream);
+float read_uart(int uart0_filestream);
 
 /*!
  * @brief This function starts execution of the program.
@@ -230,7 +230,7 @@ int main(int argc, char* argv[])
         case 1:
             printf("1\n");
             write_uart(uart0_filestream, 0xA2);
-            TR = atof(read_uart(uart0_filestream));
+            TR = read_uart(uart0_filestream);
             break;
         case 2:
             printf("Escolha a temperatura desejada: ");
@@ -239,7 +239,7 @@ int main(int argc, char* argv[])
     }
     
     write_uart(uart0_filestream, 0xA1);
-    float TI = atof(read_uart(uart0_filestream));
+    float TI = read_uart(uart0_filestream);
 
     dev.intf = BME280_I2C_INTF;
     dev.read = user_i2c_read;
@@ -489,13 +489,11 @@ void write_uart(int uart0_filestream, int cmd){
 }
 
 
-char *read_uart(int uart0_filestream){
+float read_uart(int uart0_filestream){
 	sleep(1);
 	// Read up to 255 characters from the port if they are there
-    unsigned char rx_buffer[256];
-    char format[25];
-    strcpy(format ,"%i Bytes lidos : %f\n");
-    int rx_length = read(uart0_filestream, (void*)rx_buffer, 255);      //Filestream, buffer to store in, number of bytes to read (max)
+    float rx_buffer;
+    int rx_length = read(uart0_filestream, (void*)&rx_buffer, sizeof(float));      //Filestream, buffer to store in, number of bytes to read (max)
     if (rx_length < 0)
     {
         printf("Erro na leitura.\n"); //An error occured (will occur if there are no bytes)
@@ -504,98 +502,6 @@ char *read_uart(int uart0_filestream){
     {
         printf("Nenhum dado encontrado.\n"); //No data waiting
     }
-    else
-    {
-        //Bytes received
-        rx_buffer[rx_length] = '\0';
-        printf(format, rx_length, rx_buffer);
-    }
+   
     return rx_buffer;
-}
-
-// LCD
-
-
-// float to string
-void typeFloat(float myFloat)   {
-  char buffer[20];
-  sprintf(buffer, "%4.2f",  myFloat);
-  typeln(buffer);
-}
-
-// int to string
-void typeInt(int i)   {
-  char array1[20];
-  sprintf(array1, "%d",  i);
-  typeln(array1);
-}
-
-// clr lcd go home loc 0x80
-void ClrLcd(void)   {
-  lcd_byte(0x01, LCD_CMD);
-  lcd_byte(0x02, LCD_CMD);
-}
-
-// go to location on LCD
-void lcdLoc(int line)   {
-  lcd_byte(line, LCD_CMD);
-}
-
-// out char to LCD at current position
-void typeChar(char val)   {
-
-  lcd_byte(val, LCD_CHR);
-}
-
-
-// this allows use of any size string
-void typeln(const char *s)   {
-
-  while ( *s ) lcd_byte(*(s++), LCD_CHR);
-
-}
-
-void lcd_byte(int bits, int mode)   {
-
-  //Send byte to data pins
-  // bits = the data
-  // mode = 1 for data, 0 for command
-  int bits_high;
-  int bits_low;
-  // uses the two half byte writes to LCD
-  bits_high = mode | (bits & 0xF0) | LCD_BACKLIGHT ;
-  bits_low = mode | ((bits << 4) & 0xF0) | LCD_BACKLIGHT ;
-
-  // High bits
-  wiringPiI2CReadReg8(fd, bits_high);
-  lcd_toggle_enable(bits_high);
-
-  // Low bits
-  wiringPiI2CReadReg8(fd, bits_low);
-  lcd_toggle_enable(bits_low);
-}
-
-void lcd_toggle_enable(int bits)   {
-  // Toggle enable pin on LCD display
-  delayMicroseconds(500);
-  wiringPiI2CReadReg8(fd, (bits | ENABLE));
-  delayMicroseconds(500);
-  wiringPiI2CReadReg8(fd, (bits & ~ENABLE));
-  delayMicroseconds(500);
-}
-
-
-void lcd_init()   {
-
-  if (wiringPiSetup () == -1) exit (1);
-
-  fd = wiringPiI2CSetup(I2C_ADDR);
-  // Initialise display
-  lcd_byte(0x33, LCD_CMD); // Initialise
-  lcd_byte(0x32, LCD_CMD); // Initialise
-  lcd_byte(0x06, LCD_CMD); // Cursor move direction
-  lcd_byte(0x0C, LCD_CMD); // 0x0F On, Blink Off
-  lcd_byte(0x28, LCD_CMD); // Data length, number of lines, font size
-  lcd_byte(0x01, LCD_CMD); // Clear display
-  delayMicroseconds(500);
 }
