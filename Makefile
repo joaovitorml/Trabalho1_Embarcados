@@ -5,7 +5,7 @@
 # INCDIR = $(BLDDIR)/inc
 # SRCDIR = $(BLDDIR)/src
 # OBJDIR = $(BLDDIR)/obj
-# CFLAGS = -c -Wall -I -lwiringPi $(INCDIR)
+# CFLAGS = -c -Wall -I -lwiringPi -lbcm2835 $(INCDIR)
 # SRC = $(wildcard $(SRCDIR)/*.c)
 # OBJ = $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(SRC))
 # EXE = bin/bin
@@ -24,9 +24,9 @@
 
 
 build:
-	gcc ./src/main.c ./src/bme280.c -I ./inc  -lwiringPi -o ./bin/bin
+	gcc ./src/main.c ./src/bme280.c -I ./inc  -lwiringPi -lbcm2835 -o ./bin/bin
 run:
-	./bin/prog /dev/i2c-1
+	./prog /dev/i2c-1
 clean:
 	-rm -f $(OBJDIR)/*.o $(EXE)
 	rm -v ./bin/prog
