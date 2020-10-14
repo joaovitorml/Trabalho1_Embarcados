@@ -401,8 +401,8 @@ int8_t stream_sensor_data_forced_mode(struct bme280_dev *dev, float TI, float TR
         }
             float TE = comp_data.temperature;
        	    print_sensor_data(&comp_data, TE, TR);
-	        printf("%s",asctime(timeinfo));
-            fprintf(file, "Medicao %d - Hora: %s - TR: %f - TI: %f - TE: %f", i+1, asctime(timeinfo), TR, TI, TE);
+	    printf("%s",asctime(timeinfo));
+            fprintf(file, "Medicao %d - Hora: %s - TR: %f - TI: %f - TE: %f\n", i+1, asctime(timeinfo), TR, TI, TE);
             i++;
 	        sleep(2);
             fclose(file);
@@ -428,14 +428,16 @@ int8_t stream_sensor_data_forced_mode(struct bme280_dev *dev, float TI, float TR
             bcm2835_gpio_fsel(VEN, BCM2835_GPIO_FSEL_OUTP);
 
             if(TI < TR){
-                bcm2835_gpio_write(RES, LOW);
-                bcm2835_gpio_write(VEN, HIGH);
-                delay(500);
-            }
-            else{
                 bcm2835_gpio_write(RES, HIGH);
                 bcm2835_gpio_write(VEN, LOW);
-                delay(500);
+                printf("liga resistor\n");
+                delay(2);
+            }
+            else{
+                bcm2835_gpio_write(RES, LOW);
+                bcm2835_gpio_write(VEN, HIGH);
+                printf("liga vento\n");
+                delay(2);
             }
             bcm2835_close();
     }
@@ -481,7 +483,7 @@ float read_uart(int uart0_filestream){
 	sleep(1);
 	// Read up to 255 characters from the port if they are there
     float rx_buffer;
-    int rx_length = read(uart0_filestream, (void*)&rx_buffer, sizeof(float));      //Filestream, buffer to store in, number of bytes to read (max)
+    int rx_length = read(uart0_filestream, (void*)&rx_buffer, 5);      //Filestream, buffer to store in, number of bytes to read (max)
     if (rx_length < 0)
     {
         printf("Erro na leitura.\n"); //An error occured (will occur if there are no bytes)

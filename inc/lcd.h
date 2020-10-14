@@ -107,11 +107,11 @@ void lcd_byte(int bits, int mode)   {
 
 void lcd_toggle_enable(int bits)   {
   // Toggle enable pin on LCD display
-  delay(500);
+  delay(2);
   wiringPiI2CReadReg8(fd, (bits | ENABLE));
-  delay(500);
+  delay(2);
   wiringPiI2CReadReg8(fd, (bits & ~ENABLE));
-  delay(500);
+  delay(2);
 }
 
 
@@ -128,5 +128,5 @@ void lcd_init()   {
   lcd_byte(0x0C, LCD_CMD); // 0x0F On, Blink Off
   lcd_byte(0x28, LCD_CMD); // Data length, number of lines, font size
   lcd_byte(0x01, LCD_CMD); // Clear display
-  delay(500);
+  delay(2);
 }

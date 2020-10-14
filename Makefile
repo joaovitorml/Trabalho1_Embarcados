@@ -26,7 +26,7 @@
 build:
 	gcc ./src/main.c ./src/bme280.c -I ./inc  -lwiringPi -lbcm2835 -o ./bin/bin
 run:
-	./prog /dev/i2c-1
+	./bin/bin /dev/i2c-1
 clean:
 	-rm -f $(OBJDIR)/*.o $(EXE)
 	rm -v ./bin/prog
