@@ -14,7 +14,7 @@ https://gitlab.com/fse_fga/projetos/projeto-1
 
 Na pasta do projeto, rode o comando:
 ```
-make build
+make all
 ```
 ## Como rodar
 
