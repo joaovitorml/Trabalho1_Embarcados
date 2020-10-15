@@ -400,16 +400,14 @@ int8_t stream_sensor_data_forced_mode(struct bme280_dev *dev, float TI, float TR
             break;
         }
             float TE = comp_data.temperature;
-       	    print_sensor_data(&comp_data, TE, TR);
-	    printf("%s",asctime(timeinfo));
+       	    print_sensor_data(&comp_data, TI, TR);
+	        printf("%s",asctime(timeinfo));
             fprintf(file, "Medicao %d - Hora: %s - TR: %f - TI: %f - TE: %f\n", i+1, asctime(timeinfo), TR, TI, TE);
             i++;
 	        sleep(2);
             fclose(file);
 
             lcd_init(); 
-
-            delay(2000);
             ClrLcd();
             lcdLoc(LINE1);
             typeln("TR: ");
@@ -428,14 +426,14 @@ int8_t stream_sensor_data_forced_mode(struct bme280_dev *dev, float TI, float TR
             bcm2835_gpio_fsel(VEN, BCM2835_GPIO_FSEL_OUTP);
 
             if(TI < TR){
-                bcm2835_gpio_write(RES, HIGH);
-                bcm2835_gpio_write(VEN, LOW);
+                bcm2835_gpio_write(RES, LOW);
+                bcm2835_gpio_write(VEN, HIGH);
                 printf("liga resistor\n");
                 delay(2);
             }
             else{
-                bcm2835_gpio_write(RES, LOW);
-                bcm2835_gpio_write(VEN, HIGH);
+                bcm2835_gpio_write(RES, HIGH);
+                bcm2835_gpio_write(VEN, LOW);
                 printf("liga vento\n");
                 delay(2);
             }
